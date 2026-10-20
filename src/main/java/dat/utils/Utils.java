@@ -21,24 +21,51 @@ public class Utils {
     public static void main(String[] args) {
         System.out.println(getPropertyValue("db.name", "properties-from-pom.properties"));
     }
-    public static String getPropertyValue(String propName, String resourceName)  {
-        // REMEMBER TO BUILD WITH MAVEN FIRST. Read the property file if not deployed (else read system vars instead)
-        // Read from ressources/config.properties or from pom.xml depending on the ressourceName
-        try (InputStream is = Utils.class.getClassLoader().getResourceAsStream(resourceName)) {
+
+
+    public static String getPropertyValue(String propName, String resourceName) {
+
+        // First try environment variables (Docker / deployment)
+        String envValue = System.getenv(propName);
+
+        if (envValue != null && !envValue.isBlank()) {
+            return envValue.trim();
+        }
+
+        // Otherwise read config.properties (local development)
+        try (InputStream is = Utils.class.getClassLoader()
+                .getResourceAsStream(resourceName)) {
+
+            if (is == null) {
+                throw new ApiException(
+                        500,
+                        "Configuration file not found: " + resourceName
+                                + ". Missing environment variable: " + propName
+                );
+            }
+
             Properties prop = new Properties();
             prop.load(is);
 
             String value = prop.getProperty(propName);
-            if (value != null) {
-                return value.trim();  // Trim whitespace
-            } else {
-                throw new ApiException(500, String.format("Property %s not found in %s", propName, resourceName));
+
+            if (value != null && !value.isBlank()) {
+                return value.trim();
             }
+
+            throw new ApiException(
+                    500,
+                    "Property " + propName + " not found in " + resourceName
+            );
+
         } catch (IOException ex) {
-            ex.printStackTrace();
-            throw new ApiException(500, String.format("Could not read property %s. Did you remember to build the project with MAVEN?", propName));
+            throw new ApiException(
+                    500,
+                    "Could not read property " + propName
+            );
         }
     }
+
 
     public ObjectMapper getObjectMapper() {
         ObjectMapper objectMapper = new ObjectMapper();
